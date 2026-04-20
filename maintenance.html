@@ -333,6 +333,9 @@ function renderStatus() {
     .filter(Boolean)
     .sort((a,b) => b.score - a.score)
     .forEach(d => box.appendChild(createCard(d)));
+
+  // 👉 기타정비 카드 (필수)
+  box.appendChild(createOtherCard());
 }
 
 /* popup */

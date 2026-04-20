@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>정비관리</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: -apple-system, sans-serif;
+  background: #f5f6f8;
+}
+
+.header {
+  padding: 16px;
+  text-align: center;
+  background: white;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.container {
+  max-width: 420px;
+  margin: 20px auto;
+  padding: 16px;
+}
+
+.card {
+  background: white;
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+label {
+  font-size: 13px;
+  color: #666;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+
+  box-sizing: border-box; /* 🔥 핵심 추가 */
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 10px;
+  background: #4a90e2;
+  color: white;
+  font-size: 15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  🔧 차량 정비관리
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <label>엔진오일 교체 KM</label>
+    <input id="engine" type="number" placeholder="예: 10000">
+  </div>
+
+  <div class="card">
+    <label>타이어 교체 KM</label>
+    <input id="tire" type="number" placeholder="예: 50000">
+  </div>
+
+  <div class="card">
+    <label>미션오일 교체 KM</label>
+    <input id="mission" type="number" placeholder="예: 60000">
+  </div>
+
+  <div class="card">
+    <label>에어필터 교체 KM</label>
+    <input id="air" type="number" placeholder="예: 15000">
+  </div>
+
+  <div class="card">
+    <label>연료필터 교체 KM</label>
+    <input id="fuel" type="number" placeholder="예: 20000">
+  </div>
+
+  <button onclick="save()">저장</button>
+
+</div>
+
+<script>
+function save() {
+  const data = {
+    engine: document.getElementById("engine").value,
+    tire: document.getElementById("tire").value,
+    mission: document.getElementById("mission").value,
+    air: document.getElementById("air").value,
+    fuel: document.getElementById("fuel").value
+  };
+
+  localStorage.setItem("maintenance_rule", JSON.stringify(data));
+
+  alert("저장 완료");
+}
+</script>
+
+</body>
+</html>

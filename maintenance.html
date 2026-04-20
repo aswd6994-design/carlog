@@ -6,10 +6,20 @@
 <title>정비관리</title>
 
 <style>
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, sans-serif;
   background: #f5f6f8;
+}
+
+/* 키보드 올라올 때 스크롤 튐 방지 */
+html, body {
+  height: 100%;
+  overflow-x: hidden;
 }
 
 .header {
@@ -26,93 +36,327 @@ body {
   padding: 16px;
 }
 
+.summary {
+  background: white;
+  padding: 14px;
+  border-radius: 14px;
+  margin-bottom: 16px;
+}
+
 .card {
   background: white;
   padding: 14px;
   border-radius: 12px;
   margin-bottom: 12px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  cursor: pointer;
 }
 
-label {
+.title {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.detail {
   font-size: 13px;
+  color: #555;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.warn { background: #fff6e5; color: #b26a00; }
+.danger { background: #ffe5e5; color: #b30000; }
+
+.bar {
+  width: 100%;
+  height: 8px;
+  background: #eee;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.fill {
+  height: 100%;
+  transition: 0.4s;
+}
+
+.percentText {
+  font-size: 12px;
+  margin-top: 4px;
+  text-align: right;
   color: #666;
 }
 
-input {
-  width: 100%;
-  padding: 10px;
-  margin-top: 6px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-
-  box-sizing: border-box; /* 🔥 핵심 추가 */
+/* overlay */
+.overlay {
+  display: none;
+  position: fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background: rgba(0,0,0,0.4);
+  z-index: 9998;
 }
 
-button {
+/* popup 개선 */
+.popup {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  width: 90%;
+  max-width: 340px;
+
+  background: white;
+  padding: 16px;
+  border-radius: 14px;
+  z-index: 9999;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+
+  /* 모바일 키보드 대응 */
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.popup h3 {
+  margin-top: 0;
+}
+
+.popup input {
   width: 100%;
-  padding: 12px;
+  padding: 10px;
   margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 16px; /* iOS 확대 방지 */
+}
+
+.popup button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #4a90e2;
   color: white;
   font-size: 15px;
 }
+
+/* 팝업 열릴 때 body 스크롤 막기 */
+body.lock {
+  overflow: hidden;
+}
+
 </style>
+
 </head>
 
 <body>
 
-<div class="header">
-  🔧 차량 정비관리
-</div>
+<div class="header">🔧 차량 정비관리</div>
 
 <div class="container">
 
-  <div class="card">
-    <label>엔진오일 교체 KM</label>
-    <input id="engine" type="number" placeholder="예: 10000">
+  <div class="summary">
+    현재 km: <b id="currentKm">-</b>
   </div>
 
-  <div class="card">
-    <label>타이어 교체 KM</label>
-    <input id="tire" type="number" placeholder="예: 50000">
-  </div>
-
-  <div class="card">
-    <label>미션오일 교체 KM</label>
-    <input id="mission" type="number" placeholder="예: 60000">
-  </div>
-
-  <div class="card">
-    <label>에어필터 교체 KM</label>
-    <input id="air" type="number" placeholder="예: 15000">
-  </div>
-
-  <div class="card">
-    <label>연료필터 교체 KM</label>
-    <input id="fuel" type="number" placeholder="예: 20000">
-  </div>
-
-  <button onclick="save()">저장</button>
+  <div id="list"></div>
 
 </div>
 
+<div class="overlay" id="overlay" onclick="closePopup()"></div>
+
+<div class="popup" id="popup">
+  <h3 id="title"></h3>
+  <div id="info"></div>
+
+  <input id="inputKm" type="number" placeholder="교체 KM 입력">
+  <button onclick="fixComplete()">교체 완료</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
-function save() {
-  const data = {
-    engine: document.getElementById("engine").value,
-    tire: document.getElementById("tire").value,
-    mission: document.getElementById("mission").value,
-    air: document.getElementById("air").value,
-    fuel: document.getElementById("fuel").value
-  };
 
-  localStorage.setItem("maintenance_rule", JSON.stringify(data));
+const client = supabase.createClient(
+  "https://drbvrvftwryrglradshz.supabase.co",
+  "sb_publishable_hcsEKwfcnGHoWIOOAKarvA_G9xB3-Lc"
+);
 
-  alert("저장 완료");
+let currentKm = 0;
+let selected = null;
+
+let rule = {
+  engine: 6000,
+  tire: 40000,
+  mission: 60000,
+  air: 15000,
+  fuel: 20000
+};
+
+const nameMap = {
+  engine: "엔진오일",
+  tire: "타이어",
+  mission: "미션오일",
+  air: "에어필터",
+  fuel: "연료필터"
+};
+
+async function loadKm() {
+  const { data } = await client
+    .from('car_log')
+    .select('end_km')
+    .not('end_km', 'is', null)
+    .order('id', { ascending: false })
+    .limit(1);
+
+  currentKm = data?.[0]?.end_km || 0;
+  document.getElementById("currentKm").innerText = currentKm;
 }
+
+let lastChange = {};
+
+async function loadMaintenance() {
+  const { data } = await client
+    .from('maintenance_log')
+    .select('*');
+
+  lastChange = {};
+
+  data?.forEach(row => {
+    if (!lastChange[row.part] || row.km > lastChange[row.part]) {
+      lastChange[row.part] = row.km;
+    }
+  });
+}
+
+function getData(part) {
+
+  const limit = rule[part];
+  const last = lastChange[part];
+
+  const used = last ? (currentKm - last) : currentKm;
+  const raw = (used / limit) * 100;
+
+  let status = "";
+  let score = 0;
+
+  if (raw >= 100) {
+    status = "🔴 교체 필요";
+    score = 2;
+  } else if (raw >= 70) {
+    status = "🟡 점검 필요";
+    score = 1;
+  } else {
+    return null;
+  }
+
+  return { part, limit, last, used, raw, status, score };
+}
+
+function createCard(d) {
+
+  const color = d.raw >= 100 ? "#e74c3c" : "#f39c12";
+
+  const div = document.createElement("div");
+  div.className = "card";
+  div.onclick = () => openPopup(d.part);
+
+  div.innerHTML = `
+    <div class="title">${nameMap[d.part]}</div>
+
+    <div class="detail">
+      기준: ${d.limit} km<br>
+      마지막 교체: ${d.last ? d.last + " km" : "없음"}<br>
+      사용: ${d.used} km
+    </div>
+
+    <div class="bar">
+      <div class="fill" style="width:${Math.min(d.raw,100)}%; background:${color};"></div>
+    </div>
+
+    <div class="percentText">${d.raw.toFixed(0)}%</div>
+
+    <div class="badge ${d.score === 2 ? "danger" : "warn"}">
+      ${d.status}
+    </div>
+  `;
+
+  return div;
+}
+
+function render() {
+
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  Object.keys(rule)
+    .map(getData)
+    .filter(Boolean)
+    .sort((a,b) => b.score - a.score)
+    .forEach(d => list.appendChild(createCard(d)));
+}
+
+function openPopup(part) {
+  selected = part;
+
+  document.getElementById("title").innerText = nameMap[part];
+  document.getElementById("info").innerText =
+    "마지막 교체: " + (lastChange[part] ? lastChange[part] + " km" : "없음");
+
+  document.getElementById("overlay").style.display = "block";
+  document.getElementById("popup").style.display = "block";
+
+  document.body.classList.add("lock");
+}
+
+function closePopup() {
+  document.getElementById("overlay").style.display = "none";
+  document.getElementById("popup").style.display = "none";
+
+  document.body.classList.remove("lock");
+}
+
+async function fixComplete() {
+
+  const km = Number(document.getElementById("inputKm").value);
+  if (!km) return alert("KM 입력 필요");
+
+  await client.from('maintenance_log').insert([{
+    part: selected,
+    km: km,
+    over_km: Math.max(0, km - rule[selected]),
+    created_at: new Date().toISOString()
+  }]);
+
+  document.getElementById("inputKm").value = "";
+
+  closePopup();
+  await loadMaintenance();
+  render();
+}
+
+async function init() {
+  await loadKm();
+  await loadMaintenance();
+  render();
+}
+
+init();
+
 </script>
 
 </body>

@@ -170,6 +170,15 @@ body {
 <div class="popup" id="popup">
   <h3 id="title"></h3>
 
+  <!-- 🔥 추가: 기타 입력 -->
+  <input id="inputCustom" list="customList" placeholder="정비 항목 입력 (기타일 경우)">
+  <datalist id="customList">
+    <option value="브레이크 패드">
+    <option value="배터리">
+    <option value="와이퍼">
+    <option value="전구 교체">
+  </datalist>
+
   <input id="inputKm" type="number" placeholder="교체 KM 입력">
   <input id="inputPrice" type="number" placeholder="정비 가격 입력">
 
@@ -185,6 +194,7 @@ const client = supabase.createClient(
 
 let currentKm = 0;
 let selected = null;
+let isCustom = false;
 
 let rule = {
   engine: 6000,
@@ -208,34 +218,22 @@ function normalizePart(part) {
   return nameMap[(part || "").toLowerCase()] || part;
 }
 
-/* KM */
 async function loadKm() {
-  const { data, error } = await client
+  const { data } = await client
     .from('car_log')
     .select('end_km')
     .order('id', { ascending: false })
     .limit(1);
 
-  if (error) {
-    console.error("KM 로딩 오류:", error);
-    return;
-  }
-
   currentKm = data?.[0]?.end_km || 0;
   document.getElementById("currentKm").innerText = currentKm;
 }
 
-/* history */
 async function loadHistory() {
-  const { data, error } = await client
+  const { data } = await client
     .from('maintenance_log')
     .select('*')
     .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error("히스토리 오류:", error);
-    return;
-  }
 
   historyData = data || [];
   renderHistory();
@@ -265,9 +263,7 @@ function getData(part) {
   const key = part.toLowerCase();
   const limit = rule[key];
 
-  const last = historyData.find(
-    v => (v.part || "").toLowerCase() === key
-  )?.km || 0;
+  const last = historyData.find(v => (v.part || "").toLowerCase() === key)?.km || 0;
 
   const used = currentKm - last;
   const raw = (used / limit) * 100;
@@ -339,10 +335,16 @@ function renderStatus() {
   box.appendChild(createOtherCard());
 }
 
-/* popup */
 function openPopup(part) {
   selected = part;
-  document.getElementById("title").innerText = normalizePart(part);
+  isCustom = (part === "custom");
+
+  document.getElementById("title").innerText =
+    isCustom ? "기타 정비 입력" : normalizePart(part);
+
+  document.getElementById("inputCustom").style.display =
+    isCustom ? "block" : "none";
+
   document.getElementById("overlay").style.display = "block";
   document.getElementById("popup").style.display = "block";
 }
@@ -352,12 +354,16 @@ function closePopup() {
   document.getElementById("popup").style.display = "none";
 }
 
-/* 🔥 핵심 수정 */
 async function fixComplete() {
 
-  if (!selected) {
-    alert("항목 선택이 안됨");
-    return;
+  let partName = selected;
+
+  if (isCustom) {
+    partName = document.getElementById("inputCustom").value;
+    if (!partName) {
+      alert("정비 항목 입력 필요");
+      return;
+    }
   }
 
   const km = Number(document.getElementById("inputKm").value);
@@ -368,17 +374,16 @@ async function fixComplete() {
     return;
   }
 
-  const { data, error } = await client
+  const { error } = await client
     .from('maintenance_log')
     .insert([{
-      part: selected.toLowerCase(),
+      part: partName.toLowerCase(),
       km,
       price,
       created_at: new Date().toISOString()
     }]);
 
   if (error) {
-    console.error("저장 실패:", error);
     alert("저장 실패: " + error.message);
     return;
   }
@@ -386,8 +391,10 @@ async function fixComplete() {
   alert("저장 완료");
 
   closePopup();
+
   document.getElementById("inputKm").value = "";
   document.getElementById("inputPrice").value = "";
+  document.getElementById("inputCustom").value = "";
 
   await loadHistory();
   renderStatus();

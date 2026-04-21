@@ -86,10 +86,7 @@ body {
   margin-top: 20px;
 }
 
-.historyTitle {
-  font-weight: bold;
-  margin-bottom: 10px;
-}
+.historyTitle { font-weight: bold; margin-bottom: 10px; }
 
 .historyItem {
   padding: 10px 0;
@@ -172,7 +169,6 @@ body {
 
 <div class="popup" id="popup">
   <h3 id="title"></h3>
-  <div id="info"></div>
 
   <input id="inputKm" type="number" placeholder="교체 KM 입력">
   <input id="inputPrice" type="number" placeholder="정비 가격 입력">
@@ -208,42 +204,48 @@ const nameMap = {
 
 let historyData = [];
 
-/* 👉 핵심: 표시 변환 함수 */
 function normalizePart(part) {
   return nameMap[(part || "").toLowerCase()] || part;
 }
 
 /* KM */
 async function loadKm() {
-  const { data } = await client
+  const { data, error } = await client
     .from('car_log')
     .select('end_km')
     .order('id', { ascending: false })
     .limit(1);
 
+  if (error) {
+    console.error("KM 로딩 오류:", error);
+    return;
+  }
+
   currentKm = data?.[0]?.end_km || 0;
   document.getElementById("currentKm").innerText = currentKm;
 }
 
-/* 이력 */
+/* history */
 async function loadHistory() {
-  const { data } = await client
+  const { data, error } = await client
     .from('maintenance_log')
     .select('*')
     .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error("히스토리 오류:", error);
+    return;
+  }
 
   historyData = data || [];
   renderHistory();
 }
 
-/* 최근 5개 */
 function renderHistory() {
-
   const box = document.getElementById("historyList");
   box.innerHTML = "";
 
   historyData.slice(0, 5).forEach(v => {
-
     const div = document.createElement("div");
     div.className = "historyItem";
 
@@ -252,21 +254,17 @@ function renderHistory() {
         <span>${normalizePart(v.part)}</span>
         <span>${new Date(v.created_at).toLocaleDateString()}</span>
       </div>
-      <div>
-        KM: ${v.km} km
-        ${v.price ? ` / ₩${v.price}` : ""}
-      </div>
+      <div>KM: ${v.km} km ${v.price ? `/ ₩${v.price}` : ""}</div>
     `;
 
     box.appendChild(div);
   });
 }
 
-/* 상태 계산 */
 function getData(part) {
-
   const key = part.toLowerCase();
   const limit = rule[key];
+
   const last = historyData.find(
     v => (v.part || "").toLowerCase() === key
   )?.km || 0;
@@ -290,9 +288,7 @@ function getData(part) {
   return { part: key, limit, last, used, raw, status, score };
 }
 
-/* 카드 */
 function createCard(d) {
-
   const color = d.raw >= 100 ? "#e74c3c" : "#f39c12";
 
   const div = document.createElement("div");
@@ -301,7 +297,6 @@ function createCard(d) {
 
   div.innerHTML = `
     <div class="title">${normalizePart(d.part)}</div>
-
     <div class="detail">
       기준: ${d.limit} km<br>
       마지막: ${d.last || "없음"} km<br>
@@ -322,9 +317,16 @@ function createCard(d) {
   return div;
 }
 
-/* 상태 */
-function renderStatus() {
+function createOtherCard() {
+  const div = document.createElement("div");
+  div.className = "card";
+  div.style.textAlign = "center";
+  div.innerText = "➕ 기타 정비 추가";
+  div.onclick = () => openPopup("custom");
+  return div;
+}
 
+function renderStatus() {
   const box = document.getElementById("statusList");
   box.innerHTML = "";
 
@@ -334,14 +336,12 @@ function renderStatus() {
     .sort((a,b) => b.score - a.score)
     .forEach(d => box.appendChild(createCard(d)));
 
-  // 👉 기타정비 카드 (필수)
   box.appendChild(createOtherCard());
 }
 
 /* popup */
 function openPopup(part) {
   selected = part;
-
   document.getElementById("title").innerText = normalizePart(part);
   document.getElementById("overlay").style.display = "block";
   document.getElementById("popup").style.display = "block";
@@ -352,27 +352,47 @@ function closePopup() {
   document.getElementById("popup").style.display = "none";
 }
 
-/* 저장 */
+/* 🔥 핵심 수정 */
 async function fixComplete() {
+
+  if (!selected) {
+    alert("항목 선택이 안됨");
+    return;
+  }
 
   const km = Number(document.getElementById("inputKm").value);
   const price = Number(document.getElementById("inputPrice").value);
 
-  if (!km) return alert("KM 입력 필요");
+  if (!km) {
+    alert("KM 입력 필요");
+    return;
+  }
 
-  await client.from('maintenance_log').insert([{
-    part: selected.toLowerCase(),
-    km,
-    price,
-    created_at: new Date().toISOString()
-  }]);
+  const { data, error } = await client
+    .from('maintenance_log')
+    .insert([{
+      part: selected.toLowerCase(),
+      km,
+      price,
+      created_at: new Date().toISOString()
+    }]);
+
+  if (error) {
+    console.error("저장 실패:", error);
+    alert("저장 실패: " + error.message);
+    return;
+  }
+
+  alert("저장 완료");
 
   closePopup();
+  document.getElementById("inputKm").value = "";
+  document.getElementById("inputPrice").value = "";
+
   await loadHistory();
   renderStatus();
 }
 
-/* init */
 async function init() {
   await loadKm();
   await loadHistory();

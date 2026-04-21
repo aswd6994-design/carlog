@@ -170,7 +170,8 @@ body {
 <div class="popup" id="popup">
   <h3 id="title"></h3>
 
-  <!-- 🔥 추가: 기타 입력 -->
+  <input id="inputDriver" placeholder="담당자 입력">
+
   <input id="inputCustom" list="customList" placeholder="정비 항목 입력 (기타일 경우)">
   <datalist id="customList">
     <option value="브레이크 패드">
@@ -193,6 +194,7 @@ const client = supabase.createClient(
 );
 
 let currentKm = 0;
+let currentDriver = "";
 let selected = null;
 let isCustom = false;
 
@@ -219,14 +221,42 @@ function normalizePart(part) {
 }
 
 async function loadKm() {
-  const { data } = await client
+
+  // 1️⃣ 운행 중 데이터 확인
+  const { data: driving } = await client
     .from('car_log')
-    .select('end_km')
+    .select('*')
+    .is('end_km', null)
     .order('id', { ascending: false })
     .limit(1);
 
-  currentKm = data?.[0]?.end_km || 0;
+  if (driving && driving.length > 0) {
+    // 👉 운행 중이면 start_km 사용
+    currentKm = driving[0].start_km || 0;
+  } else {
+
+    // 2️⃣ 운행 완료된 데이터에서 마지막 end_km
+    const { data: finished } = await client
+      .from('car_log')
+      .select('end_km')
+      .order('id', { ascending: false })
+      .limit(1);
+
+    currentKm = finished?.[0]?.end_km || 0;
+  }
+
   document.getElementById("currentKm").innerText = currentKm;
+}
+
+async function loadCurrentDriver() {
+  const { data } = await client
+    .from('car_log')
+    .select('*')
+    .is('end_km', null)
+    .order('id', { ascending: false })
+    .limit(1);
+
+  currentDriver = data?.[0]?.driver || "";
 }
 
 async function loadHistory() {
@@ -252,7 +282,7 @@ function renderHistory() {
         <span>${normalizePart(v.part)}</span>
         <span>${new Date(v.created_at).toLocaleDateString()}</span>
       </div>
-      <div>KM: ${v.km} km ${v.price ? `/ ₩${v.price}` : ""}</div>
+      <div>담당자: ${v.driver || "-"} / KM: ${v.km} km ${v.price ? `/ ₩${v.price}` : ""}</div>
     `;
 
     box.appendChild(div);
@@ -268,20 +298,17 @@ function getData(part) {
   const used = currentKm - last;
   const raw = (used / limit) * 100;
 
-  let status = "";
-  let score = 0;
+  if (raw < 70) return null;
 
-  if (raw >= 100) {
-    status = "🔴 교체 필요";
-    score = 2;
-  } else if (raw >= 70) {
-    status = "🟡 점검 필요";
-    score = 1;
-  } else {
-    return null;
-  }
-
-  return { part: key, limit, last, used, raw, status, score };
+  return {
+    part: key,
+    limit,
+    last,
+    used,
+    raw,
+    status: raw >= 100 ? "🔴 교체 필요" : "🟡 점검 필요",
+    score: raw >= 100 ? 2 : 1
+  };
 }
 
 function createCard(d) {
@@ -345,6 +372,8 @@ function openPopup(part) {
   document.getElementById("inputCustom").style.display =
     isCustom ? "block" : "none";
 
+  document.getElementById("inputDriver").value = currentDriver;
+
   document.getElementById("overlay").style.display = "block";
   document.getElementById("popup").style.display = "block";
 }
@@ -369,6 +398,13 @@ async function fixComplete() {
   const km = Number(document.getElementById("inputKm").value);
   const price = Number(document.getElementById("inputPrice").value);
 
+  let driver = currentDriver || document.getElementById("inputDriver").value;
+
+  if (!driver) {
+    alert("담당자 입력 필요");
+    return;
+  }
+
   if (!km) {
     alert("KM 입력 필요");
     return;
@@ -380,6 +416,7 @@ async function fixComplete() {
       part: partName.toLowerCase(),
       km,
       price,
+      driver,
       created_at: new Date().toISOString()
     }]);
 
@@ -395,14 +432,17 @@ async function fixComplete() {
   document.getElementById("inputKm").value = "";
   document.getElementById("inputPrice").value = "";
   document.getElementById("inputCustom").value = "";
+  document.getElementById("inputDriver").value = "";
 
   await loadHistory();
+  await loadCurrentDriver();
   renderStatus();
 }
 
 async function init() {
   await loadKm();
   await loadHistory();
+  await loadCurrentDriver();
   renderStatus();
 }
 

@@ -119,6 +119,26 @@ button.save {
   margin: 4px 0 0;
 }
 
+/* ===== 토스트 ===== */
+#toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.8);
+  color: white;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 99999;
+}
+
+#toast.show {
+  opacity: 1;
+}
+
 </style>
 
 </head>
@@ -165,6 +185,9 @@ button.save {
 
 </div>
 
+<!-- 토스트 -->
+<div id="toast"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
@@ -172,6 +195,17 @@ const client = supabase.createClient(
   "https://drbvrvftwryrglradshz.supabase.co",
   "sb_publishable_hcsEKwfcnGHoWIOOAKarvA_G9xB3-Lc"
 );
+
+/* ===== 토스트 함수 ===== */
+function showToast(msg) {
+  const toast = document.getElementById("toast");
+  toast.innerText = msg;
+  toast.classList.add("show");
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2000);
+}
 
 /* DOM */
 const startBtn = document.getElementById("startBtn");
@@ -344,6 +378,12 @@ endBtn.onclick = async () => {
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();
 
+  /* 운행자 필수 체크 */
+  if (!driver.value.trim()) {
+    showToast("운행자를 입력하세요");
+    return;
+  }
+
   const km = Number(document.getElementById("km").value || 0);
   const now = new Date().toISOString();
   const date = new Date().toISOString().split('T')[0];
@@ -372,7 +412,7 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   await loadMaintenanceKm();
   await loadLatestKm();
 
-  alert("완료");
+  showToast("저장되었습니다");
   document.getElementById("form").reset();
 });
 

@@ -17,10 +17,6 @@ html, body {
   font-family: -apple-system, sans-serif;
 }
 
-#warnIcon {
-  color: red;
-}
-
 .header {
   position: relative;
   text-align: center;
@@ -44,7 +40,6 @@ html, body {
   color: white;
 }
 
-/* ⚠ */
 #warnIcon {
   position: fixed;
   top: 12px;
@@ -53,6 +48,7 @@ html, body {
   cursor: pointer;
   z-index: 9999;
   display: none;
+  color: red;
 }
 
 #warnPopup {
@@ -124,7 +120,6 @@ button.save {
 
 <body>
 
-<!-- ⚠ -->
 <div id="warnIcon" onclick="openWarnPopup()">⚠</div>
 
 <div id="warnPopup">
@@ -173,11 +168,16 @@ const client = supabase.createClient(
   "sb_publishable_hcsEKwfcnGHoWIOOAKarvA_G9xB3-Lc"
 );
 
+/* DOM */
+const startBtn = document.getElementById("startBtn");
+const endBtn = document.getElementById("endBtn");
+
+/* 상태 */
 let mode = "start";
 let lastData = null;
 let latestKm = 0;
 
-/* ===== 정비 기준 ===== */
+/* 정비 기준 */
 const rule = {
   engine: 10000,
   tire: 50000,
@@ -186,32 +186,29 @@ const rule = {
   fuel: 20000
 };
 
-let lastChange = {
-  engine: 0,
-  tire: 0,
-  mission: 0,
-  air: 0,
-  fuel: 0
-};
+/* DB 정비 데이터 */
+let lastChange = {};
 
-/* ===== 출발 KM 기본값 ===== */
-async function setStartDefaultKm() {
+/* ===== 정비 DB 로드 ===== */
+async function loadMaintenanceKm() {
+
   const { data } = await client
-    .from('car_log')
-    .select('end_km')
-    .not('end_km', 'is', null)
-    .order('id', { ascending: false })
-    .limit(1);
+    .from('maintenance_log')
+    .select('part, km');
 
-  const kmInput = document.getElementById("km");
+  let temp = {};
 
-  if (data?.[0]?.end_km) {
-    kmInput.value = "";
-    kmInput.placeholder = `이전 KM: ${data[0].end_km}`;
-  }
+  (data || []).forEach(v => {
+    const key = (v.part || "").toLowerCase();
+    if (!temp[key] || v.km > temp[key]) {
+      temp[key] = v.km;
+    }
+  });
+
+  lastChange = temp;
 }
 
-/* ===== 최신 KM (정비용) ===== */
+/* ===== 최신 차량 KM ===== */
 async function loadLatestKm() {
   const { data } = await client
     .from('car_log')
@@ -224,13 +221,16 @@ async function loadLatestKm() {
   checkMaintenance();
 }
 
-/* ===== 정비 계산 ===== */
+/* ===== 경고 체크 ===== */
 function checkMaintenance() {
+
   let warn = [];
   let danger = [];
 
   for (let k in rule) {
-    const diff = latestKm - lastChange[k];
+
+    const last = lastChange[k] || 0;
+    const diff = latestKm - last;
 
     if (diff >= rule[k]) danger.push(k);
     else if (diff >= rule[k] * 0.8) warn.push(k);
@@ -244,6 +244,7 @@ function checkMaintenance() {
 
 /* ===== 팝업 ===== */
 function openWarnPopup() {
+
   const r = checkMaintenance();
 
   const name = {
@@ -280,9 +281,28 @@ function goMaintenance() {
   location.href = "maintenance.html";
 }
 
-/* ===== 버튼 복구 (핵심) ===== */
-document.getElementById("startBtn").onclick = () => {
+/* ===== 이전 KM ===== */
+async function setStartDefaultKm() {
+
+  const { data } = await client
+    .from('car_log')
+    .select('end_km')
+    .not('end_km', 'is', null)
+    .order('id', { ascending: false })
+    .limit(1);
+
+  const kmInput = document.getElementById("km");
+
+  if (data?.[0]?.end_km) {
+    kmInput.value = "";
+    kmInput.placeholder = `이전 KM: ${data[0].end_km}`;
+  }
+}
+
+/* ===== 버튼 ===== */
+startBtn.onclick = () => {
   mode = "start";
+
   startBtn.classList.add("active");
   endBtn.classList.remove("active");
 
@@ -290,8 +310,9 @@ document.getElementById("startBtn").onclick = () => {
   setStartDefaultKm();
 };
 
-document.getElementById("endBtn").onclick = async () => {
+endBtn.onclick = async () => {
   mode = "end";
+
   endBtn.classList.add("active");
   startBtn.classList.remove("active");
 
@@ -304,15 +325,13 @@ document.getElementById("endBtn").onclick = async () => {
 
   lastData = data?.[0] || null;
 
-  // 🔥 UI 복구 (중요)
   if (lastData) {
-    document.getElementById("driver").value = lastData.driver || "";
-    document.getElementById("destination").value = lastData.destination || "";
-    document.getElementById("purpose").value = lastData.purpose || "";
+    driver.value = lastData.driver || "";
+    destination.value = lastData.destination || "";
+    purpose.value = lastData.purpose || "";
 
-    const kmInput = document.getElementById("km");
-    kmInput.value = "";
-    kmInput.placeholder = `출발 KM: ${lastData.start_km}`;
+    document.getElementById("km").placeholder =
+      `출발 KM: ${lastData.start_km}`;
   }
 };
 
@@ -322,10 +341,11 @@ document.getElementById("form").addEventListener("submit", async (e) => {
 
   const km = Number(document.getElementById("km").value || 0);
   const now = new Date().toISOString();
+  const date = new Date().toISOString().split('T')[0];
 
   if (mode === "start") {
     await client.from('car_log').insert([{
-      date: new Date().toISOString().split('T')[0], // 🔥 이거 추가
+      date: date,
       driver: driver.value,
       destination: destination.value,
       purpose: purpose.value,
@@ -344,18 +364,20 @@ document.getElementById("form").addEventListener("submit", async (e) => {
       .eq('id', lastData.id);
   }
 
-  await setStartDefaultKm();
+  await loadMaintenanceKm();
   await loadLatestKm();
 
   alert("완료");
   document.getElementById("form").reset();
 });
 
-/* ===== 초기 실행 ===== */
+/* ===== 초기 ===== */
 window.addEventListener("load", async () => {
   await setStartDefaultKm();
+  await loadMaintenanceKm();
   await loadLatestKm();
 });
+
 </script>
 
 </body>

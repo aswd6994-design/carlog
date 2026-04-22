@@ -163,6 +163,38 @@ body {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+.typeBadge {
+  display:inline-block;
+  padding:2px 8px;
+  font-size:11px;
+  border-radius:10px;
+  margin-left:6px;
+}
+
+.typeCheck {
+  background: rgba(255, 193, 7, 0.2); /* 노랑 반투명 */
+  color: #b26a00;
+}
+
+.typeReplace {
+  background: rgba(46, 204, 113, 0.2); /* 초록 반투명 */
+  color: #1e8449;
+}
+#priceWrapper {
+  height: 48px; /* input 높이에 맞춤 */
+}
+
+@keyframes popupBounce {
+  0%   { transform: translate(-50%, -60%) scale(0.9); opacity:0; }
+  50%  { transform: translate(-50%, -48%) scale(1.05); opacity:1; }
+  70%  { transform: translate(-50%, -52%) scale(0.98); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+.popup.show {
+  animation: popupBounce 0.35s ease;
+}
 </style>
 </head>
 
@@ -200,13 +232,27 @@ body {
 <div class="overlay" id="overlay" onclick="closePopup()"></div>
 
 <div class="popup" id="popup">
-  <h3 id="title"></h3>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+  <h3 id="title" style="margin:0;"></h3>
+  <div id="statusBadge" style="
+    font-size:11px;
+    padding:4px 8px;
+    border-radius:8px;
+  "></div>
+</div>
+
+  <div style="display:flex; gap:10px; margin-top:10px;">
+  <button id="btnReplace" type="button" onclick="selectType('replace')" style="flex:1;">🔧 교체</button>
+  <button id="btnCheck" type="button" onclick="selectType('check')" style="flex:1;">🔍 점검</button>
+  </div>
 
   <input id="inputDriver" placeholder="담당자 입력">
   <input id="inputCustom" placeholder="정비 항목 입력 (기타)">
   <input id="inputKm" type="number" placeholder="교체 KM 입력">
+  <div id="priceWrapper">
   <input id="inputPrice" type="number" placeholder="정비 가격 입력">
-
+  </div>
+  
   <button onclick="fixComplete()">저장</button>
 </div>
 
@@ -225,6 +271,42 @@ const client = supabase.createClient(
   "https://drbvrvftwryrglradshz.supabase.co",
   "sb_publishable_hcsEKwfcnGHoWIOOAKarvA_G9xB3-Lc"
 );
+
+let selectedType = "replace";
+function selectType(type){
+  selectedType = type;
+
+  const btnReplace = document.getElementById("btnReplace");
+  const btnCheck = document.getElementById("btnCheck");
+
+  const inputKm = document.getElementById("inputKm");
+  const priceWrapper = document.getElementById("priceWrapper");
+
+  if(type === "replace"){
+    // ✅ 버튼 색상
+    btnReplace.style.background = "#4a90e2";
+    btnReplace.style.color = "#fff";
+
+    btnCheck.style.background = "#eee";
+    btnCheck.style.color = "#333";
+
+    // ✅ 입력창
+    priceWrapper.style.visibility = "visible";
+    inputKm.placeholder = "현재 KM 입력";
+
+  }else{
+    // ✅ 버튼 색상
+    btnCheck.style.background = "#4a90e2";
+    btnCheck.style.color = "#fff";
+
+    btnReplace.style.background = "#eee";
+    btnReplace.style.color = "#333";
+
+    // ✅ 입력창
+    priceWrapper.style.visibility = "hidden";
+    inputKm.placeholder = "현재 KM 입력";
+  }
+}
 
 let currentKm=0;
 let currentDriver="";
@@ -290,9 +372,14 @@ function renderHistory(){
 
     div.innerHTML=`
       <div class="historyTop">
-        <span>${normalizePart(v.part)}</span>
-        <span>${new Date(v.created_at).toLocaleDateString()}</span>
-      </div>
+  <span>
+    ${normalizePart(v.part)} 
+    <span class="typeBadge ${v.type === "check" ? "typeCheck" : "typeReplace"}">
+  ${v.type === "check" ? "점검" : "교체"}
+</span>
+  </span>
+  <span>${new Date(v.created_at).toLocaleDateString()}</span>
+</div>
       <div>담당자: ${v.driver||"-"} / KM: ${v.km} km ${v.price?`/ ₩${v.price}`:""}</div>
     `;
 
@@ -305,10 +392,23 @@ function getData(part){
   const key=part.toLowerCase();
   const limit=rule[key];
 
-  const last=historyData.find(v=>(v.part||"").toLowerCase()===key)?.km||0;
+  // ✅ 교체만 기준
+  const lastReplace = historyData.find(v =>
+    (v.part||"").toLowerCase() === key &&
+    (v.type || "replace") === "replace"
+  )?.km || 0;
 
-  const used=currentKm-last;
-  const raw=(used/limit)*100;
+  // ✅ 점검 보너스 합산
+  const totalBonus = historyData
+    .filter(v =>
+      (v.part||"").toLowerCase() === key &&
+      v.type === "check"
+    )
+    .reduce((sum, v) => sum + (v.bonus_km || 0), 0);
+
+  const used = currentKm - lastReplace - totalBonus;
+  const safeUsed = Math.max(0, used);
+  const raw = (safeUsed / limit) * 100;
 
   let status, score;
 
@@ -324,8 +424,13 @@ function getData(part){
   }
 
   return {
-    part:key,limit,last,used,raw,
-    status,score
+    part:key,
+    limit,
+    last:lastReplace,
+    used:safeUsed,
+    raw,
+    status,
+    score
   };
 }
 
@@ -338,7 +443,7 @@ function createCard(d){
 
   const div=document.createElement("div");
   div.className="card";
-  div.onclick=()=>openPopup(d.part);
+  div.onclick=()=>openPopup(d);
 
   div.innerHTML=`
     <div class="title">${normalizePart(d.part)}</div>
@@ -387,20 +492,50 @@ function renderStatus(){
 }
 
 /* 팝업 */
-function openPopup(part){
-  selected=part;
-  isCustom=(part==="custom");
-
+function openPopup(data){
+  selected = data.part;
+  isCustom = (data.part === "custom");
+  selectedType = "replace";
+  selectType("replace");
   document.getElementById("title").innerText=
-    isCustom?"기타 정비 입력":normalizePart(part);
+    isCustom?"기타 정비 입력":normalizePart(data.part);
 
+    const badge = document.getElementById("statusBadge");
+
+if(!isCustom){
+  if(data.score === 2){
+    badge.innerText = "교체 필요";
+    badge.style.background = "#ffe5e5";
+    badge.style.color = "#b30000";
+  }else if(data.score === 1){
+    badge.innerText = "점검 권장";
+    badge.style.background = "#fff6e5";
+    badge.style.color = "#b26a00";
+  }else{
+    badge.innerText = "정상";
+    badge.style.background = "#e8f8f1";
+    badge.style.color = "#1e8449";
+  }
+}else{
+  badge.innerText = "";
+  badge.style.background = "transparent";
+}
   document.getElementById("inputCustom").style.display=
     isCustom?"block":"none";
 
   document.getElementById("inputDriver").value=currentDriver;
 
+ const popup = document.getElementById("popup");
+
+  // ✅ 애니메이션 초기화
+  popup.classList.remove("show");
+  void popup.offsetWidth;
+
   document.getElementById("overlay").style.display="block";
-  document.getElementById("popup").style.display="block";
+  popup.style.display="block";
+
+  // ✅ 애니메이션 실행
+  popup.classList.add("show");
 }
 
 function closePopup(){
@@ -423,12 +558,22 @@ async function fixComplete(){
 
   let driver=currentDriver||document.getElementById("inputDriver").value;
 
+  
   if(!driver) return showToast("담당자 입력 필요");
   if(!km) return showToast("KM 입력 필요");
+
+  let bonusKm = 0;
+
+if(selectedType === "check"){
+  const limit = rule[selected];
+  bonusKm = Math.floor(limit * 0.2); // 20% 보너스
+}
 
   const {error}=await client.from('maintenance_log').insert([{
     part:partName.toLowerCase(),
     km,price,driver,
+    type: selectedType, // ✅ 여기만 추가
+    bonus_km: bonusKm, // ✅ 여기만 추가
     created_at:new Date().toISOString()
   }]);
 
@@ -445,6 +590,8 @@ async function fixComplete(){
 
   await loadHistory();
   renderStatus();
+
+
 }
 
 /* 엑셀 */

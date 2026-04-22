@@ -247,7 +247,14 @@ body {
   </div>
 
   <input id="inputDriver" placeholder="담당자 입력">
-  <input id="inputCustom" placeholder="정비 항목 입력 (기타)">
+  <input id="inputCustom" list="customList" placeholder="정비 항목 입력">
+
+  <datalist id="customList"> // 추가하고싶은 정비목록은 여기 추가 🛑
+  <option value="브레이크패드">
+  <option value="와이퍼">
+  <option value="배터리">
+  <option value="냉각수">
+</datalist>
   <input id="inputKm" type="number" placeholder="교체 KM 입력">
   <div id="priceWrapper">
   <input id="inputPrice" type="number" placeholder="정비 가격 입력">
@@ -474,7 +481,11 @@ function createOtherCard(){
   div.className="card";
   div.style.textAlign="center";
   div.innerText="➕ 기타 정비 추가";
-  div.onclick=()=>openPopup("custom");
+  div.onclick=()=>openPopup({
+  part: "custom",
+  score: 0,
+  status: ""
+});
   return div;
 }
 
@@ -549,8 +560,8 @@ async function fixComplete(){
   let partName=selected;
 
   if(isCustom){
-    partName=document.getElementById("inputCustom").value;
-    if(!partName) return showToast("정비 항목 입력 필요");
+  partName = document.getElementById("inputCustom").value;
+  if(!partName) return showToast("정비 항목 입력 필요");
   }
 
   const km=Number(document.getElementById("inputKm").value);

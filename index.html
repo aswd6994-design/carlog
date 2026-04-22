@@ -197,9 +197,9 @@ button.save {
     <input id="driver" placeholder="운행자">
     <input id="destination" placeholder="목적지">
     <input id="purpose" placeholder="목적">
-    <input id="km" placeholder="계기판(km)">
-    <input id="fuel" placeholder="주유량">
-    <input id="cost" placeholder="금액">
+    <input id="km" placeholder="계기판(km)" inputmode="numeric" pattern="[0-9]*">
+    <input id="fuel" placeholder="주유량" inputmode="numeric" pattern="[0-9]*">
+    <input id="cost" placeholder="금액" inputmode="numeric" pattern="[0-9]*">
     <button class="save">저장</button>
   </form>
 

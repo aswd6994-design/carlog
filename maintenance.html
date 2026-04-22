@@ -144,7 +144,6 @@ body {
   color:white;
 }
 
-/* ✅ 토스트 */
 .toast {
   position: fixed;
   bottom: 30px;
@@ -165,7 +164,6 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 </style>
-
 </head>
 
 <body>
@@ -181,9 +179,7 @@ body {
   <div id="statusList"></div>
 
 <div class="historyBox">
-
   <div style="display:flex; justify-content:space-between; align-items:center;">
-    
     <div class="historyTitle">📋 최근 정비 이력 (최신 5개)</div>
 
     <button onclick="downloadExcel()"
@@ -194,11 +190,9 @@ body {
   </svg>
 
 </button>
-
   </div>
 
   <div id="historyList"></div>
-
 </div>
 
 </div>
@@ -306,7 +300,7 @@ function renderHistory(){
   });
 }
 
-/* 상태 */
+/* 상태 (✅ 수정 핵심) */
 function getData(part){
   const key=part.toLowerCase();
   const limit=rule[key];
@@ -316,17 +310,31 @@ function getData(part){
   const used=currentKm-last;
   const raw=(used/limit)*100;
 
-  if(raw<70) return null;
+  let status, score;
+
+  if(raw>=100){
+    status="🔴 교체 필요";
+    score=2;
+  }else if(raw>=70){
+    status="🟡 점검 필요";
+    score=1;
+  }else{
+    status="🟢 정상";
+    score=0;
+  }
 
   return {
     part:key,limit,last,used,raw,
-    status:raw>=100?"🔴 교체 필요":"🟡 점검 필요",
-    score:raw>=100?2:1
+    status,score
   };
 }
 
+/* 카드 */
 function createCard(d){
-  const color=d.raw>=100?"#e74c3c":"#f39c12";
+  let color="#2ecc71";
+
+  if(d.raw>=100) color="#e74c3c";
+  else if(d.raw>=70) color="#f39c12";
 
   const div=document.createElement("div");
   div.className="card";
@@ -346,7 +354,10 @@ function createCard(d){
 
     <div class="percentText">${d.raw.toFixed(0)}%</div>
 
-    <div class="badge ${d.score===2?"danger":"warn"}">
+    <div class="badge ${
+      d.score===2?"danger":
+      d.score===1?"warn":""
+    }">
       ${d.status}
     </div>
   `;
@@ -362,13 +373,13 @@ function createOtherCard(){
   return div;
 }
 
+/* 상태 렌더 (✅ filter 제거) */
 function renderStatus(){
   const box=document.getElementById("statusList");
   box.innerHTML="";
 
   Object.keys(rule)
     .map(getData)
-    .filter(Boolean)
     .sort((a,b)=>b.score-a.score)
     .forEach(d=>box.appendChild(createCard(d)));
 
@@ -421,7 +432,7 @@ async function fixComplete(){
     created_at:new Date().toISOString()
   }]);
 
-  if(error) return showToast("저장 실패: "+error.message);
+  if(error) return showToast("저장 실패");
 
   showToast("저장 완료");
 
@@ -433,30 +444,20 @@ async function fixComplete(){
   document.getElementById("inputDriver").value="";
 
   await loadHistory();
-  await loadCurrentDriver();
   renderStatus();
 }
 
 /* 엑셀 */
 async function downloadExcel(){
-  const {data,error}=await client.from('maintenance_log').select('*').order('created_at',{ascending:false});
+  const {data,error}=await client.from('maintenance_log').select('*');
 
-  if(error) return showToast("데이터 불러오기 실패");
-  if(!data||data.length===0) return showToast("데이터 없음");
+  if(error) return showToast("실패");
 
-  const excelData=data.map(v=>({
-    날짜:new Date(v.created_at).toLocaleDateString(),
-    부품:normalizePart(v.part),
-    KM:v.km,
-    가격:v.price||"",
-    담당자:v.driver||""
-  }));
-
-  const ws=XLSX.utils.json_to_sheet(excelData);
+  const ws=XLSX.utils.json_to_sheet(data);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,"정비이력");
 
-  XLSX.writeFile(wb,`정비이력_${new Date().toISOString().slice(0,10)}.xlsx`);
+  XLSX.writeFile(wb,"정비이력.xlsx");
 }
 
 /* init */

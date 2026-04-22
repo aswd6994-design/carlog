@@ -417,7 +417,15 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     return;
   }
 
-  const km = Number(document.getElementById("km").value || 0);
+  const inputKm = document.getElementById("km").value;
+let km = 0;
+
+if (inputKm === "" || inputKm === null) {
+  // 입력 안했으면 → 마지막 END KM 사용
+  km = latestKm;
+} else {
+  km = Number(inputKm);
+}
   const now = new Date().toISOString();
   const date = new Date().toISOString().split('T')[0];
 

@@ -51,6 +51,16 @@ html, body {
   color: red;
 }
 
+@keyframes softBlink {
+  0%   { opacity: 1; transform: scale(1); }
+  50%  { opacity: 0.4; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+#warnIcon.blink {
+  animation: softBlink 1.5s ease-in-out infinite;
+}
+
 #warnPopup {
   display: none;
   position: fixed;
@@ -271,8 +281,15 @@ function checkMaintenance() {
     else if (diff >= rule[k] * 0.8) warn.push(k);
   }
 
-  document.getElementById("warnIcon").style.display =
-    (warn.length || danger.length) ? "block" : "none";
+  const icon = document.getElementById("warnIcon");
+
+if (warn.length || danger.length) {
+  icon.style.display = "block";
+  icon.classList.add("blink"); // ✅ 깜박임 시작
+} else {
+  icon.style.display = "none";
+  icon.classList.remove("blink"); // ✅ 깜박임 제거
+}
 
   return { warn, danger };
 }

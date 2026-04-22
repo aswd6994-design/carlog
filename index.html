@@ -412,7 +412,13 @@ endBtn.onclick = async () => {
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  if (!driver.value.trim()) {
+  const driverVal      = document.getElementById("driver").value;
+  const destinationVal = document.getElementById("destination").value;
+  const purposeVal     = document.getElementById("purpose").value;
+  const fuelVal        = document.getElementById("fuel").value;
+  const costVal        = document.getElementById("cost").value;
+
+    if (!driver.value.trim()) {
     showToast("운행자를 입력하세요");
     return;
   }
@@ -420,34 +426,40 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   const inputKm = document.getElementById("km").value;
 let km = 0;
 
-if (inputKm === "" || inputKm === null) {
-  // 입력 안했으면 → 마지막 END KM 사용
-  km = latestKm;
+// ✅ 이걸로 교체
+if (mode === "start") {
+  km = inputKm !== "" ? Number(inputKm) : latestKm;
 } else {
-  km = Number(inputKm);
+  km = inputKm !== "" ? Number(inputKm) : (lastData?.start_km || latestKm);
 }
   const now = new Date().toISOString();
   const date = new Date().toISOString().split('T')[0];
 
   if (mode === "start") {
+    // ✅ 교체
     await client.from('car_log').insert([{
-      date: date,
-      driver: driver.value,
-      destination: destination.value,
-      purpose: purpose.value,
-      start_km: km,
-      start_time: now
-    }]);
+      date:        date,
+      driver:      driverVal,
+      destination: destinationVal,
+      purpose:     purposeVal,
+      start_km:    km,
+      start_time:  now,
+      fuel:        fuelVal !== "" ? Number(fuelVal) : null,
+      cost:        costVal !== "" ? Number(costVal) : null
+}]);
   }
 
   if (mode === "end" && lastData) {
+    // ✅ 교체
     await client.from('car_log')
-      .update({
-        end_km: km,
-        end_time: now,
-        distance: km - lastData.start_km
-      })
-      .eq('id', lastData.id);
+  .update({
+    end_km:   km,
+    end_time: now,
+    distance: km - lastData.start_km,
+    fuel:     fuelVal !== "" ? Number(fuelVal) : null,
+    cost:     costVal !== "" ? Number(costVal) : null
+  })
+  .eq('id', lastData.id);
   }
 
   await loadMaintenanceKm();

@@ -138,6 +138,16 @@ button.save {
 #toast.show {
   opacity: 1;
 }
+@keyframes warnBounce {
+  0%   { transform: translate(-50%, -60%) scale(0.9); opacity:0; }
+  50%  { transform: translate(-50%, -48%) scale(1.05); opacity:1; }
+  70%  { transform: translate(-50%, -52%) scale(0.98); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+#warnPopup.show {
+  animation: warnBounce 0.35s ease;
+}
 
 </style>
 
@@ -293,7 +303,17 @@ function openWarnPopup() {
   document.getElementById("warnContent").innerHTML =
     html || "정비 필요 없음";
 
-  document.getElementById("warnPopup").style.display = "block";
+  const popup = document.getElementById("warnPopup");
+
+// 애니메이션 초기화 (중요)
+popup.classList.remove("show");
+void popup.offsetWidth;
+
+popup.style.display = "block";
+
+// 애니메이션 실행
+popup.classList.add("show");
+  
 }
 
 function closeWarnPopup() {

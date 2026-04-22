@@ -185,7 +185,6 @@ button.save {
 
 </div>
 
-<!-- 토스트 -->
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -196,7 +195,7 @@ const client = supabase.createClient(
   "sb_publishable_hcsEKwfcnGHoWIOOAKarvA_G9xB3-Lc"
 );
 
-/* ===== 토스트 함수 ===== */
+/* ===== 토스트 ===== */
 function showToast(msg) {
   const toast = document.getElementById("toast");
   toast.innerText = msg;
@@ -207,16 +206,13 @@ function showToast(msg) {
   }, 2000);
 }
 
-/* DOM */
 const startBtn = document.getElementById("startBtn");
 const endBtn = document.getElementById("endBtn");
 
-/* 상태 */
 let mode = "start";
 let lastData = null;
 let latestKm = 0;
 
-/* 정비 기준 */
 const rule = {
   engine: 10000,
   tire: 50000,
@@ -225,18 +221,12 @@ const rule = {
   fuel: 20000
 };
 
-/* DB 정비 데이터 */
 let lastChange = {};
 
-/* ===== 정비 DB 로드 ===== */
 async function loadMaintenanceKm() {
-
-  const { data } = await client
-    .from('maintenance_log')
-    .select('part, km');
+  const { data } = await client.from('maintenance_log').select('part, km');
 
   let temp = {};
-
   (data || []).forEach(v => {
     const key = (v.part || "").toLowerCase();
     if (!temp[key] || v.km > temp[key]) {
@@ -247,7 +237,6 @@ async function loadMaintenanceKm() {
   lastChange = temp;
 }
 
-/* ===== 최신 차량 KM ===== */
 async function loadLatestKm() {
   const { data } = await client
     .from('car_log')
@@ -260,14 +249,11 @@ async function loadLatestKm() {
   checkMaintenance();
 }
 
-/* ===== 경고 체크 ===== */
 function checkMaintenance() {
-
   let warn = [];
   let danger = [];
 
   for (let k in rule) {
-
     const last = lastChange[k] || 0;
     const diff = latestKm - last;
 
@@ -281,9 +267,7 @@ function checkMaintenance() {
   return { warn, danger };
 }
 
-/* ===== 팝업 ===== */
 function openWarnPopup() {
-
   const r = checkMaintenance();
 
   const name = {
@@ -320,9 +304,27 @@ function goMaintenance() {
   location.href = "maintenance.html";
 }
 
-/* ===== 이전 KM ===== */
-async function setStartDefaultKm() {
+/* ===== 추가된 부분 ===== */
 
+// 바깥 클릭 시 닫기
+window.addEventListener("click", function(e) {
+  const popup = document.getElementById("warnPopup");
+
+  if (popup.style.display === "block") {
+    if (!popup.contains(e.target) && e.target.id !== "warnIcon") {
+      closeWarnPopup();
+    }
+  }
+});
+
+// 페이지 복귀 시 닫기
+window.addEventListener("pageshow", function() {
+  closeWarnPopup();
+});
+
+/* ===== 기존 기능 ===== */
+
+async function setStartDefaultKm() {
   const { data } = await client
     .from('car_log')
     .select('end_km')
@@ -338,20 +340,16 @@ async function setStartDefaultKm() {
   }
 }
 
-/* ===== 버튼 ===== */
 startBtn.onclick = () => {
   mode = "start";
-
   startBtn.classList.add("active");
   endBtn.classList.remove("active");
-
   document.getElementById("form").reset();
   setStartDefaultKm();
 };
 
 endBtn.onclick = async () => {
   mode = "end";
-
   endBtn.classList.add("active");
   startBtn.classList.remove("active");
 
@@ -374,11 +372,9 @@ endBtn.onclick = async () => {
   }
 };
 
-/* ===== 저장 ===== */
 document.getElementById("form").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  /* 운행자 필수 체크 */
   if (!driver.value.trim()) {
     showToast("운행자를 입력하세요");
     return;
@@ -416,13 +412,11 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   document.getElementById("form").reset();
 });
 
-/* ===== 초기 ===== */
 window.addEventListener("load", async () => {
   await setStartDefaultKm();
   await loadMaintenanceKm();
   await loadLatestKm();
 });
-
 </script>
 
 </body>

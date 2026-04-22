@@ -462,6 +462,17 @@ window.addEventListener("load", async () => {
   await loadMaintenanceKm();
   await loadLatestKm();
 });
+
+document.querySelectorAll("input").forEach((el) => {
+  el.addEventListener("focus", function () {
+    setTimeout(() => {
+      this.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+    }, 300);
+  });
+});
 </script>
 
 </body>
